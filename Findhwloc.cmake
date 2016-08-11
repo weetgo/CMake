@@ -48,7 +48,7 @@ if(hwloc_FOUND)
     hwloc_INCLUDE_DIR)
 
   if(NOT ${hwloc_VERSION} VERSION_LESS 1.7.0)
-    set(hwloc_GL_FOUND 1)
+    set(HWLOC_GL_FOUND 1)
   endif()
 
   if(_hwloc_output)
