@@ -1,12 +1,13 @@
-# Copyright (c) 2014 Stefan.Eilemann@epfl.ch
-#               2015 Raphael.Dumusc@epfl.ch
+# Copyright (c) 2014-2017 Stefan.Eilemann@epfl.ch
+#                         Raphael.Dumusc@epfl.ch
 
 # Configures the build for a simple application:
-#   common_application(<Name> [GUI] [EXAMPLE])
+#   common_application(<Name> [GUI] [EXAMPLE] [NOHELP])
 #
 # Arguments:
 # * GUI: if set, build cross-platform GUI application
 # * EXAMPLE: install all sources in share/Project/examples/Name
+# * NOHELP: opt out of doxygen help extraction
 #
 # Input:
 # * NAME_SOURCES for all compilation units
@@ -19,15 +20,16 @@
 # * NAME_ICON optional .icns file (Mac OS GUI applications only)
 # * NAME_COPYRIGHT optional copyright notice (Mac OS GUI applications only)
 #
-# Builds Name application and installs it.
+# Builds Name application, generates doxygen help page and installs it.
 
 include(AppleCheckOpenGL)
 include(CommonCheckTargets)
+include(CommonHelp)
 include(CMakeParseArguments)
 include(StringifyShaders)
 
 function(common_application Name)
-  set(_opts GUI EXAMPLE WIN32)
+  set(_opts GUI EXAMPLE NOHELP WIN32)
   set(_singleArgs)
   set(_multiArgs)
   cmake_parse_arguments(THIS "${_opts}" "${_singleArgs}" "${_multiArgs}"
@@ -61,6 +63,7 @@ function(common_application Name)
   add_executable(${Name} ${OPTIONS} ${_ICON} ${HEADERS} ${SOURCES})
   set_target_properties(${Name} PROPERTIES FOLDER ${PROJECT_NAME})
   common_compile_options(${Name})
+  add_dependencies(${PROJECT_NAME}-all ${Name})
   target_link_libraries(${Name} ${LINK_LIBRARIES})
   install(TARGETS ${Name} DESTINATION bin COMPONENT apps)
 
@@ -121,8 +124,9 @@ function(common_application Name)
     endif()
   endif()
 
-  # for DoxygenRule.cmake and SubProject.cmake
-  set_property(GLOBAL APPEND PROPERTY ${PROJECT_NAME}_ALL_DEP_TARGETS ${Name})
+  if(NOT THIS_NOHELP)
+    common_help(${Name})
+  endif()
 
   if(NOT ${NAME}_OMIT_CHECK_TARGETS)
     common_check_targets(${Name})

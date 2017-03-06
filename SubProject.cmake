@@ -14,10 +14,9 @@
 # sub directories. See also: cmake command 'add_subdirectory'.
 #
 # The following targets are created by SubProject.cmake:
-# - An '${PROJECT_NAME}-update-git-subprojects' target to update the <gittag> of
+# - A '${PROJECT_NAME}-update-gitsubprojects' target to update the <gittag> of
 #   all the .gitsubprojects entries to their latest respective origin/master ref
 # - A generic 'update' target to execute 'update-git-subrojects' recursively
-# - A <project>-all target to build only the given sub project
 #
 # To be compatible with the SubProject feature, (sub)projects might need to
 # adapt their CMake scripts in the following way:
@@ -37,11 +36,6 @@
 # - DISABLE_SUBPROJECTS: when set, does not load sub projects. Useful for
 #   example for continuous integration builds
 # - SUBPROJECT_${name}: If set to OFF, the subproject is not added.
-# - INSTALL_PACKAGES: command line cache variable which will "apt-get", "yum" or
-#   "port install" the known system packages. This variable is unset after this
-#   script is parsed by top level projects.
-#   The packages to install are taken from ${PROJECT_NAME}_${type}_DEPENDS
-#   where type is DEB, RPM or PORT depending on the system.
 # - COMMON_SOURCE_DIR: When set, the source code of subprojects will be
 #   downloaded in this path instead of CMAKE_SOURCE_DIR.
 # A sample project can be found at https://github.com/Eyescale/Collage.git
@@ -57,78 +51,17 @@
 include(${CMAKE_CURRENT_LIST_DIR}/GitExternal.cmake)
 include(${CMAKE_CURRENT_LIST_DIR}/CommonGraph.cmake)
 
-if(TARGET git_subproject_${PROJECT_NAME}_done)
+get_property(SUBPROJECT_DONE GLOBAL PROPERTY GIT_SUBPROJECT_DONE_${PROJECT_NAME})
+if(SUBPROJECT_DONE)
   return()
 endif()
-add_custom_target(git_subproject_${PROJECT_NAME}_done)
-set_target_properties(git_subproject_${PROJECT_NAME}_done PROPERTIES
-  EXCLUDE_FROM_DEFAULT_BUILD ON FOLDER ${PROJECT_NAME}/zzphony)
+set_property(GLOBAL PROPERTY GIT_SUBPROJECT_DONE_${PROJECT_NAME} ON)
 
 set(COMMON_SOURCE_DIR "${CMAKE_SOURCE_DIR}" CACHE PATH
   "Location of common directory of all sources")
 set(__common_source_dir ${COMMON_SOURCE_DIR})
 get_filename_component(__common_source_dir ${__common_source_dir} ABSOLUTE)
 file(MAKE_DIRECTORY ${__common_source_dir})
-
-function(subproject_install_packages name)
-  if(NOT INSTALL_PACKAGES)
-    return()
-  endif()
-
-  string(TOUPPER ${name} NAME)
-  list(APPEND ${NAME}_DEB_DEPENDS pkg-config git cmake git-review doxygen ccache
-    graphviz ${OPTIONAL_DEBS})
-  set(${NAME}_BUILD_DEBS ${NAME}_DEB_DEPENDS)
-  list(APPEND ${NAME}_DEB_DEPENDS ninja-build lcov cppcheck clang
-    clang-format-3.5) # optional deb packages, not added to build spec
-  list(APPEND ${NAME}_PORT_DEPENDS cppcheck)
-
-  if(CMAKE_SYSTEM_NAME MATCHES "Linux" )
-    # Detecting the package manager to use
-    find_program(__pkg_mng apt-get)
-    if(__pkg_mng)
-      set(__pkg_type DEB)
-    else()
-      find_program(__pkg_mng yum)
-      if(__pkg_mng)
-        set(__pkg_type RPM)
-      endif()
-    endif()
-  elseif(APPLE)
-    find_program(__pkg_mng port)
-  endif()
-
-  if(NOT __pkg_mng)
-    message(WARNING "Could not find the package manager tool for installing dependencies in this system")
-    # Removing INSTALL_PACKAGES so the warning is not printed repeatedly.
-    unset(INSTALL_PACKAGES CACHE)
-    return()
-  else()
-    # We don't want __pkg_mng to appear in ccmake.
-    set(__pkg_mng ${__pkg_mng} CACHE INTERNAL "")
-  endif()
-
-  if(CMAKE_SYSTEM_NAME MATCHES "Linux" AND ${NAME}_${__pkg_type}_DEPENDS)
-    list(SORT ${NAME}_${__pkg_type}_DEPENDS)
-    list(REMOVE_DUPLICATES ${NAME}_${__pkg_type}_DEPENDS)
-    message(
-      "Running 'sudo ${__pkg_mng} install ${${NAME}_${__pkg_type}_DEPENDS}'")
-    execute_process(
-      COMMAND sudo ${__pkg_mng} install ${${NAME}_${__pkg_type}_DEPENDS})
-  endif()
-
-  if(${NAME}_PORT_DEPENDS AND APPLE)
-    list(SORT ${NAME}_PORT_DEPENDS)
-    list(REMOVE_DUPLICATES ${NAME}_PORT_DEPENDS)
-    set(${NAME}_PORT_DEPENDS_UNI)
-    foreach(__port ${${NAME}_PORT_DEPENDS})
-      list(APPEND ${NAME}_PORT_DEPENDS_UNI ${__port} +universal)
-    endforeach()
-    message(
-      "Running 'sudo port install ${${NAME}_PORT_DEPENDS} (+universal)'")
-    execute_process(COMMAND sudo port install -p ${${NAME}_PORT_DEPENDS_UNI})
-  endif()
-endfunction()
 
 function(add_subproject name)
   string(TOUPPER ${name} NAME)
@@ -143,12 +76,12 @@ function(add_subproject name)
   if(argc GREATER 0)
     list(GET ARGN 0 path)
   else()
-    set(path ${name})
+    set(path ${__common_source_dir}/${name})
   endif ()
 
-  if(NOT EXISTS "${__common_source_dir}/${path}/")
+  if(NOT EXISTS "${path}/")
     message(FATAL_ERROR
-      "Subproject ${path} not found in ${__common_source_dir}")
+      "Subproject ${name} not found in ${path}")
   endif()
   # enter again to catch direct add_subproject() calls
   common_graph_dep(${PROJECT_NAME} ${name} TRUE TRUE)
@@ -173,23 +106,15 @@ function(add_subproject name)
       "Location of ${name} project" FORCE)
   endif()
 
-  subproject_install_packages(${name})
-
   # add the source sub directory to our build and set the binary dir
   # to the build tree
 
-  add_subdirectory("${__common_source_dir}/${path}"
+  add_subdirectory("${path}"
     "${CMAKE_BINARY_DIR}/${name}")
   set(${name}_IS_SUBPROJECT ON PARENT_SCOPE)
 
   # Mark globally that we've already used name as a sub project
   set_property(GLOBAL PROPERTY ${name}_IS_SUBPROJECT ON)
-  # Create <project>-all target
-  get_property(__targets GLOBAL PROPERTY ${name}_ALL_DEP_TARGETS)
-  if(__targets)
-    add_custom_target(${name}-all DEPENDS ${__targets})
-    set_target_properties(${name}-all PROPERTIES FOLDER ${name})
-  endif()
 endfunction()
 
 macro(git_subproject name url tag)
@@ -218,14 +143,15 @@ macro(git_subproject name url tag)
     get_property(__included GLOBAL PROPERTY ${name}_IS_SUBPROJECT)
     if(__included)
       list(APPEND __subprojects "${name} ${url} ${tag}")
+      if(TARGET ${PROJECT_NAME}-install AND TARGET ${name}-install)
+        add_dependencies(${PROJECT_NAME}-install ${name}-install)
+      endif()
     endif()
   endif()
 endmacro()
 
 # Interpret .gitsubprojects
 if(EXISTS "${CMAKE_CURRENT_SOURCE_DIR}/.gitsubprojects")
-  subproject_install_packages(${PROJECT_NAME})
-
   set(__subprojects) # appended on each git_subproject invocation
   include(.gitsubprojects)
   if(__subprojects)
@@ -233,11 +159,12 @@ if(EXISTS "${CMAKE_CURRENT_SOURCE_DIR}/.gitsubprojects")
     set(GIT_SUBPROJECTS_SCRIPT
       "${CMAKE_CURRENT_BINARY_DIR}/UpdateSubprojects.cmake")
     file(WRITE "${GIT_SUBPROJECTS_SCRIPT}"
-      "file(WRITE .gitsubprojects \"# -*- mode: cmake -*-\n\")\n")
+      "file(READ .gitsubprojects GIT_SUBPROJECTS_FILE)\n")
     foreach(__subproject ${__subprojects})
       string(REPLACE " " ";" __subproject_list ${__subproject})
       list(GET __subproject_list 0 __subproject_name)
       list(GET __subproject_list 1 __subproject_repo)
+      list(GET __subproject_list 2 __subproject_oldref)
       list(APPEND SUBPROJECTS ${__subproject_name})
       set(__subproject_dir "${__common_source_dir}/${__subproject_name}")
       file(APPEND "${GIT_SUBPROJECTS_SCRIPT}"
@@ -248,35 +175,30 @@ if(EXISTS "${CMAKE_CURRENT_SOURCE_DIR}/.gitsubprojects")
         "  OUTPUT_VARIABLE newref OUTPUT_STRIP_TRAILING_WHITESPACE\n"
         "  WORKING_DIRECTORY \"${__subproject_dir}\")\n"
         "if(newref)\n"
-        "  file(APPEND .gitsubprojects\n"
-        "    \"git_subproject(${__subproject_name} ${__subproject_repo} \${newref})\\n\")\n"
-        "else()\n"
-        "  file(APPEND .gitsubprojects \"git_subproject(${__subproject})\n\")\n"
+        "  string(REPLACE \"${__subproject_name} ${__subproject_repo} ${__subproject_oldref}\"\n"
+        "                 \"${__subproject_name} ${__subproject_repo} \${newref}\"\n"
+        "                 GIT_SUBPROJECTS_FILE \${GIT_SUBPROJECTS_FILE})\n"
         "endif()\n")
         list(APPEND __subproject_paths ${__subproject_dir})
     endforeach()
+    file(APPEND "${GIT_SUBPROJECTS_SCRIPT}"
+      "file(WRITE .gitsubprojects \${GIT_SUBPROJECTS_FILE})\n")
 
     list(REMOVE_DUPLICATES __subproject_paths)
     set_property(GLOBAL PROPERTY SUBPROJECT_PATHS ${__subproject_paths})
 
-    add_custom_target(${PROJECT_NAME}-update-git-subprojects
+    add_custom_target(${PROJECT_NAME}-update-gitsubprojects
       COMMAND ${CMAKE_COMMAND} -P ${GIT_SUBPROJECTS_SCRIPT}
       COMMENT "Update ${PROJECT_NAME}/.gitsubprojects"
       WORKING_DIRECTORY "${CMAKE_CURRENT_SOURCE_DIR}")
-    set_target_properties(${PROJECT_NAME}-update-git-subprojects PROPERTIES
+    set_target_properties(${PROJECT_NAME}-update-gitsubprojects PROPERTIES
       EXCLUDE_FROM_DEFAULT_BUILD ON FOLDER ${PROJECT_NAME}/zzphony)
 
     if(NOT TARGET update)
       add_custom_target(update)
       set_target_properties(update PROPERTIES EXCLUDE_FROM_DEFAULT_BUILD ON)
     endif()
-    add_dependencies(update ${PROJECT_NAME}-update-git-subprojects)
-  endif()
-
-  if(NOT ${PROJECT_NAME}_IS_SUBPROJECT)
-    # If this variable was given in the command line, ensure that the package
-    # installation is only run in this cmake invocation.
-    unset(INSTALL_PACKAGES CACHE)
+    add_dependencies(update ${PROJECT_NAME}-update-gitsubprojects)
   endif()
 
 endif()

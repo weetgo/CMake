@@ -26,7 +26,7 @@ namespace @namespace@
 #   define @NAMESPACE@_VERSION_REVISION 0x@GIT_REVISION@
 
     /** The current binary interface. */
-#   define @NAMESPACE@_VERSION_ABI @PROJECT_VERSION_ABI@
+#   define @NAMESPACE@_VERSION_ABI @PROJECT_VERSION_ABI@ull
 
 /** True if the current version is newer than the given one. */
 #   define @NAMESPACE@_VERSION_GT( MAJOR, MINOR, PATCH )       \
@@ -69,7 +69,7 @@ public:
     static std::string getString();
 
     /** @return the SCM revision. */
-    static int getRevision();
+    static unsigned long long getRevision();
 
     /** @return the current binary interface version of @Name@. */
     static int getABI();
@@ -89,6 +89,39 @@ public:
     {
         return getMajor()==@NAMESPACE@_VERSION_MAJOR &&
                getMinor()==@NAMESPACE@_VERSION_MINOR;
+    }
+
+    /** @return JSON schema describing this object. */
+    static std::string getSchema()
+    {
+        return R"(
+                {
+                  "title": "Version",
+                  "type": "object",
+                  "description": "Version information of the running application",
+                  "properties": {
+                    "major": { "type": "integer" },
+                    "minor": { "type": "integer" },
+                    "patch": { "type": "integer" },
+                    "abi": { "type": "integer" },
+                    "revision": { "type": "string" }
+                  }
+               }
+               )";
+    }
+
+    /** @return JSON-encoded data for this object. */
+    static std::string toJSON()
+    {
+        return R"(
+               {
+                 "major": @PROJECT_VERSION_MAJOR@,
+                 "minor": @PROJECT_VERSION_MINOR@,
+                 "patch": @PROJECT_VERSION_PATCH@,
+                 "abi": @PROJECT_VERSION_ABI@,
+                 "revision": "@GIT_REVISION@"
+               }
+               )";
     }
 };
 

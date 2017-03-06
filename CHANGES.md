@@ -1,20 +1,63 @@
 # git master
 
+* [540](https://github.com/Eyescale/CMake/pull/540):
+  Add CommonSmokeTest.cmake to check execution of installed applications
+* [537](https://github.com/Eyescale/CMake/pull/537):
+  Automatically add a pre-commit hook to git repos for running clang-format
+* [533](https://github.com/Eyescale/CMake/pull/533):
+  Add application-help-to-doxygen extraction
+* [532](https://github.com/Eyescale/CMake/pull/532):
+  Only update SHA-1s in .gitsubprojects after ```update``` instead of rewriting
+  the whole file
+* [532](https://github.com/Eyescale/CMake/pull/532):
+  Fix missing ```git submodule update``` after ```rebase```
+* [531](https://github.com/Eyescale/CMake/pull/531):
+  Revert parallel clone due to failure of clones in CI
+* [530](https://github.com/Eyescale/CMake/pull/530):
+  Fix return value of Version::getRevision to 64 bit for longer git SHAs
+
+# 2016.12 (09-Dec-2016)
+
+* [529](https://github.com/Eyescale/CMake/pull/529):
+  Fix python3 finding on OSX with -DUSE_PYTHON_VERSION=3
+* [527](https://github.com/Eyescale/CMake/pull/527):
+  Refactor INSTALL_PACKAGES out of SubProject.cmake, also fixing a bug that
+  the dependencies of a project were not installed if it did not have a
+  .gitsubprojects file.
+* [526](https://github.com/Eyescale/CMake/pull/526):
+  Provide getSchema() and toJSON() for generated version.h
+* [517](https://github.com/Eyescale/CMake/pull/517):
+  Clone sub projects in parallel. This feature can be optionally disabled with
+  COMMON_SUBPROJECT_PARALLEL_CLONE set to OFF.
+* [516](https://github.com/Eyescale/CMake/pull/516):
+  Support for GCC 6
+* [515](https://github.com/Eyescale/CMake/pull/515):
+  Tweaked configure output to only list not found dependencies; show all with
+  COMMON_FIND_PACKAGE_QUIET set to OFF
+* [512](https://github.com/Eyescale/CMake/pull/512):
+  Add COMMON_DISABLE_WERROR option
+* [510](https://github.com/Eyescale/CMake/pull/510):
+  Also create project-all target for super project
+* [507](https://github.com/Eyescale/CMake/pull/507):
+  Handle required version in FindNumPy.cmake
+* [506](https://github.com/Eyescale/CMake/pull/506):
+  Added CommonPythonTest.cmake to ease adding Python tests to project under
+  CTest.
 * [505](https://github.com/Eyescale/CMake/pull/505):
   Added CommonCUDA.cmake with some common configuration checks for CUDA.
 * [504](https://github.com/Eyescale/CMake/pull/504):
     * Add support for yum to subproject_install_packages
     * Make sure that package installation is only attempted if INSTALL_PACKAGES
       is in the command line (i.e. do not cache the variable).
-
-# 2016.06 (30-Jun-2016)
-
 * [503](https://github.com/Eyescale/CMake/pull/503):
   Added optional MODULE argument to common_find_package() as a hint for
   pkg_config. Example usage: common_find_package(RSVG MODULE librsvg-2.0)
 * [500](https://github.com/Eyescale/CMake/pull/500):
   Added WIN32 option to CommonApplication to be able to build WinMain-based
   apps (no console).
+
+# 2016.06 (30-Jun-2016)
+
 * [497](https://github.com/Eyescale/CMake/pull/497):
   Fix install directory of common_application data
 * [494](https://github.com/Eyescale/CMake/pull/494):

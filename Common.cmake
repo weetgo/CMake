@@ -1,15 +1,23 @@
 # Common settings
 #
-# Output variables
-#   UPPER_PROJECT_NAME - lower-case ${PROJECT_NAME}
-#   LOWER_PROJECT_NAME - upper-case ${PROJECT_NAME}
-#   TRAVIS - if environment is travis build system
-#   BLUEGENE - if machine is BlueGene
-#   LINUX - if machine is Linux
-#   LINUX_PPC - if machine is PowerPC Linux
-#   COMMON_DOC_DIR - folder for documentation, share/${PROJECT_NAME}/doc
-#   COMMON_OSX_TARGET_VERSION - OS X target version
+# Input variables
+# - INSTALL_PACKAGES: command line cache variable which will "apt-get", "yum" or
+#   "port install" the known system packages. This variable is unset after this
+#   script is parsed by top level project. See InstallDependencies for details.
 #
+# Output variables
+# - UPPER_PROJECT_NAME - lower-case ${PROJECT_NAME}
+# - LOWER_PROJECT_NAME - upper-case ${PROJECT_NAME}
+# - TRAVIS - if environment is travis build system
+# - BLUEGENE - if machine is BlueGene
+# - LINUX - if machine is Linux
+# - LINUX_PPC - if machine is PowerPC Linux
+# - COMMON_DOC_DIR - folder for documentation, share/${PROJECT_NAME}/doc
+# - COMMON_OSX_TARGET_VERSION - OS X target version
+#
+# Output targets
+# - A <project>-all target to build only the given (sub)project
+# - A <project>-install target to build and install the given (sub)project
 
 cmake_minimum_required(VERSION 3.1 FATAL_ERROR)
 
@@ -115,12 +123,25 @@ if(NOT PROJECT_namespace)
   set(PROJECT_namespace ${PROJECT_INCLUDE_NAME})
 endif()
 
+if(NOT TARGET ${PROJECT_NAME}-all)
+  # Create <project>-all target. Deps are added by common_lib/app/test macros
+  add_custom_target(${PROJECT_NAME}-all)
+  set_target_properties(${PROJECT_NAME}-all PROPERTIES FOLDER ${PROJECT_NAME})
+endif()
+
+add_custom_target(${PROJECT_NAME}-install
+  ${CMAKE_COMMAND} -P ${PROJECT_BINARY_DIR}/cmake_install.cmake
+  DEPENDS ${PROJECT_NAME}-all)
+set_target_properties(${PROJECT_NAME}-install PROPERTIES
+  EXCLUDE_FROM_DEFAULT_BUILD ON)
+
 set(COMMON_DOC_DIR share/${PROJECT_NAME}/doc)
 
 include(ChoosePython) # Must be before any find_package to python
 include(CommonFindPackage)
 
-# OPT
+# OPT: reduce CMake runtime by finding Doxygen only once per superproject, not
+# in every include of Doxygen.cmake
 if(NOT DOXYGEN_FOUND)
   find_package(Doxygen QUIET)
 endif()
@@ -130,10 +151,22 @@ include(CommonInstall)
 include(CommonLibrary)
 include(CommonCompiler)
 include(CommonCoverage)
+include(CommonSmokeTest)
 include(GitInfo)
 include(GitTargets)
-include(Maturity)
+include(GitHooks)
 include(ProjectInfo)
 include(UpdateGitExternal)
 
+if(INSTALL_PACKAGES)
+  include(InstallDependencies)
+  install_dependencies(${PROJECT_NAME})
+endif()
+
 include(SubProject)
+
+if(NOT ${PROJECT_NAME}_IS_SUBPROJECT)
+  # If this variable was given in the command line, ensure that the package
+  # installation is only run in this cmake invocation.
+  unset(INSTALL_PACKAGES CACHE)
+endif()

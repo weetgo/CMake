@@ -1,4 +1,4 @@
-# Copyright (c) 2014-2015 Stefan.Eilemann@epfl.ch
+# Copyright (c) 2014-2016 Stefan.Eilemann@epfl.ch
 #                         Daniel.Nachbaur@epfl.ch
 
 # Configures the build for a simple library:
@@ -127,9 +127,11 @@ function(common_library Name)
       # append a debug suffix to library name on windows or if user requests it
       common_set_lib_name_postfix()
 
-      add_library(${LibName} ${LIBRARY_TYPE} ${SOURCES} ${HEADERS} ${PUBLIC_HEADERS})
+      add_library(${LibName} ${LIBRARY_TYPE}
+        ${SOURCES} ${HEADERS} ${PUBLIC_HEADERS})
       set_target_properties(${LibName} PROPERTIES
-        VERSION ${${PROJECT_NAME}_VERSION} SOVERSION ${${PROJECT_NAME}_VERSION_ABI}
+        VERSION ${${PROJECT_NAME}_VERSION}
+        SOVERSION ${${PROJECT_NAME}_VERSION_ABI}
         OUTPUT_NAME ${Name} FOLDER ${PROJECT_NAME})
       target_link_libraries(${LibName} ${LINK_LIBRARIES})
 
@@ -143,10 +145,7 @@ function(common_library Name)
     endif()
 
     common_compile_options(${LibName})
-
-    # for DoxygenRule.cmake and SubProject.cmake
-    set_property(GLOBAL APPEND PROPERTY
-                 ${PROJECT_NAME}_ALL_DEP_TARGETS ${LibName})
+    add_dependencies(${PROJECT_NAME}-all ${LibName})
 
     # add an alias with PROJECT_NAME to the target to ease detection of
     # subproject inclusion in CommonConfig.cmake

@@ -1,4 +1,4 @@
-# Copyright (c) 2012-2014 Fabien Delalondre <fabien.delalondre@epfl.ch>
+# Copyright (c) 2012-2016 Fabien Delalondre <fabien.delalondre@epfl.ch>
 #                         Stefan.Eilemann@epfl.ch
 #
 # Sets compiler optimization, definition and warnings according to
@@ -8,9 +8,15 @@
 # This defines the common_compile_options() function to apply compiler flags and
 # features for the given target.
 #
+# CMake options:
+# * COMMON_WARN_DEPRECATED: Enable compiler deprecation warnings, default ON
+# * COMMON_ENABLE_CXX11_STDLIB: Enable C++11 stdlib, default OFF
+# * COMMON_DISABLE_WERROR: Disable -Werror flags, default OFF
+# * COMMON_ENABLE_CXX11_ABI: Enable C++11 ABI for gcc 5 or later, default ON,
+#   can be set to OFF with env variable CMAKE_COMMON_USE_CXX03_ABI
+#
 # Input Variables
-# * COMMON_MINIMUM_GCC_VERSION check for a minimum gcc version, default 4.4
-# * COMMON_USE_CXX03 When set, do not enable C++11 language features
+# * COMMON_MINIMUM_GCC_VERSION check for a minimum gcc version, default 4.8
 #
 # Output Variables
 # * CMAKE_COMPILER_IS_XLCXX for IBM XLC
@@ -40,6 +46,12 @@ endif()
 
 option(COMMON_WARN_DEPRECATED "Enable compiler deprecation warnings" ON)
 option(COMMON_ENABLE_CXX11_STDLIB "Enable C++11 stdlib" OFF)
+option(COMMON_DISABLE_WERROR "Disable -Werror flag" OFF)
+if($ENV{CMAKE_COMMON_USE_CXX03_ABI}) # set by viz/env module
+  option(COMMON_ENABLE_CXX11_ABI "Enable C++11 ABI for gcc 5 or later" OFF)
+else()
+  option(COMMON_ENABLE_CXX11_ABI "Enable C++11 ABI for gcc 5 or later" ON)
+endif()
 
 if(COMMON_WARN_DEPRECATED)
   add_definitions(-DWARN_DEPRECATED) # projects have to pick this one up
@@ -66,18 +78,15 @@ endfunction()
 if(CMAKE_COMPILER_IS_GCC OR CMAKE_COMPILER_IS_CLANG)
   compiler_dumpversion(GCC_COMPILER_VERSION)
   if(NOT COMMON_MINIMUM_GCC_VERSION)
-    set(COMMON_MINIMUM_GCC_VERSION 4.4)
+    set(COMMON_MINIMUM_GCC_VERSION 4.8)
   endif()
   if(CMAKE_COMPILER_IS_GCC)
     if(GCC_COMPILER_VERSION VERSION_LESS COMMON_MINIMUM_GCC_VERSION)
       message(FATAL_ERROR "Using gcc ${GCC_COMPILER_VERSION}, need at least ${COMMON_MINIMUM_GCC_VERSION}")
     endif()
-    if(GCC_COMPILER_VERSION VERSION_LESS 4.5)
-      set(COMMON_USE_CXX03 ON)
-    endif()
-    if(GCC_COMPILER_VERSION VERSION_LESS 4.8)
-      # http://stackoverflow.com/questions/4438084
-      add_definitions(-D_GLIBCXX_USE_NANOSLEEP)
+    if(NOT COMMON_ENABLE_CXX11_ABI)
+      # http://stackoverflow.com/questions/30668560
+      add_definitions("-D_GLIBCXX_USE_CXX11_ABI=0")
     endif()
   endif()
 
@@ -86,7 +95,7 @@ if(CMAKE_COMPILER_IS_GCC OR CMAKE_COMPILER_IS_CLANG)
   set(COMMON_CXX_FLAGS
     -Wnon-virtual-dtor -Wsign-promo -Wvla -fno-strict-aliasing)
 
-  if(NOT WIN32 AND NOT XCODE_VERSION)
+  if(NOT WIN32 AND NOT XCODE_VERSION AND NOT COMMON_DISABLE_WERROR)
     list(APPEND COMMON_C_FLAGS -Werror)
   endif()
 
@@ -108,7 +117,7 @@ elseif(CMAKE_COMPILER_IS_INTEL)
   set(COMMON_C_FLAGS
     -Wall -Wextra -Winvalid-pch -Winit-self -Wno-unknown-pragmas)
   set(COMMON_CXX_FLAGS
-    -Wno-deprecated -Wno-unknown-pragmas -Wshadow -fno-strict-aliasing -Wuninitialized -Wsign-promo -Wnon-virtual-dtor)
+    -Wno-deprecated -Wno-unknown-pragmas -Wshadow -fno-strict-aliasing -Wuninitialized -Wsign-promo)
 
   # Release: automatically generate instructions for the highest
   # supported compilation host
@@ -119,8 +128,10 @@ elseif(CMAKE_COMPILER_IS_INTEL)
   set(CMAKE_CXX_COMPILE_FEATURES ${CMAKE_CXX11_COMPILE_FEATURES})
   set(CMAKE_CXX11_STANDARD_COMPILE_OPTION "-std=c++11")
   set(CMAKE_CXX11_EXTENSION_COMPILE_OPTION "-std=c++11")
-  if(NOT COMMON_USE_CXX03)
-    list(APPEND COMMON_CXX_FLAGS -std=c++11)
+  list(APPEND COMMON_CXX_FLAGS -std=c++11)
+  if(NOT COMMON_ENABLE_CXX11_ABI)
+    # http://stackoverflow.com/questions/30668560
+    add_definitions("-D_GLIBCXX_USE_CXX11_ABI=0")
   endif()
 
 elseif(CMAKE_COMPILER_IS_XLCXX)
@@ -175,20 +186,11 @@ function(common_compile_options Name)
     set(__interface 1)
     set(__visibility INTERFACE)
   endif()
-  if(COMMON_USE_CXX03)
-    target_compile_definitions(${Name} ${__visibility}
-      ${UPPER_PROJECT_NAME}_USE_CXX03)
-    if(NOT __interface)
-      set_property(TARGET ${Name} PROPERTY C_STANDARD 99)
-      set_property(TARGET ${Name} PROPERTY CXX_STANDARD 98)
-    endif()
-  else()
-    if(NOT __interface)
-      set_property(TARGET ${Name} PROPERTY C_STANDARD 11)
-      set_property(TARGET ${Name} PROPERTY CXX_STANDARD 11)
-    endif()
-    target_compile_features(${Name} ${__visibility} ${COMMON_CXX11_FEATURES})
+  if(NOT __interface)
+    set_property(TARGET ${Name} PROPERTY C_STANDARD 11)
+    set_property(TARGET ${Name} PROPERTY CXX_STANDARD 11)
   endif()
+  target_compile_features(${Name} ${__visibility} ${COMMON_CXX11_FEATURES})
   if(APPLE)
     target_compile_definitions(${Name} ${__visibility} Darwin)
   endif()
@@ -222,7 +224,7 @@ function(common_compile_options Name)
     if(TARGET Qt5::Widgets)
       set_target_properties(${Name} PROPERTIES AUTOUIC TRUE)
     endif()
-    if(CMAKE_COMPILER_IS_GCC)
+    if(CMAKE_COMPILER_IS_GCC AND NOT APPLE)
       set_target_properties(${Name} PROPERTIES LINK_FLAGS "-Wl,--no-as-needed")
     endif()
   endif()

@@ -34,9 +34,12 @@ The following CMake modules can be included in your project:
       more convenience over find_package and *common_find_package_post* (must be
       last after all common_find_package calls) to generate defines.h and
       options.cmake for feature checking.
-    * [CommonCompiler](CommonCompiler.cmake): Default compiler flags can be set
-      on given target to common_compile_options(), useful default warnings and
-      'safe' C++11 features.
+    * [CommonCompiler](CommonCompiler.cmake): Default compiler flags and useful
+      default warnings can be set on given target to common_compile_options();
+      automatically applied for targets created with common_application() and
+      common_library()
+    * [CommonHelp](CommonHelp.cmake) *common_help* function to create a
+      documentation page from an application's --help output.
     * [GitInfo](GitInfo.cmake) sets variables with information about the git
       source tree.
     * [GitTargets](GitTargets.cmake) *branch*, *cut*, *tag*, *erase*, *retag*,
@@ -77,8 +80,9 @@ The following CMake modules can be included in your project:
   https://github.com/BlueBrain/Livre.git.
 
 Additional features:
-* Users can use "cmake -DINSTALL_PACKAGES=1" during the initial configuration to
-  install known system packages.
+* [InstallDependencies](InstallDependencies.cmake) lets users install known
+  system packages during the initial configuration by doing
+  "cmake -DINSTALL_PACKAGES=1".
   This is only implemented for Linux distributions using apt-get and yum
   package managers and MacPorts in OS X. The actual support depends on the
   project declaring its dependencies for each particular case.
